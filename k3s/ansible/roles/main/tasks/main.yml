@@ -1,0 +1,155 @@
+---
+# tasks file for k8smaster
+- name: Update all installed packages using YUM module
+  yum:
+    name: '*'
+    state: latest
+    update_cache: yes
+    update_only: yes
+  register: yum_update_status
+
+- name: Install required system packages
+  dnf:
+    name:
+      - ca-certificates
+      - openssl
+      - openssl-devel
+      - curl
+      - wget
+      - nano
+      - unzip
+      - git
+      - gcc
+      - openssl-devel
+      - bzip2-devel
+      - libffi-devel
+      - zlib-devel
+      - tar
+      - jq
+      - make
+    state: latest
+    update_cache: true
+
+- name: Docker Engine - Uninstall old versions
+  dnf:
+    name:
+      - docker-client
+      - docker-client-latest
+      - docker-common
+      - docker-latest
+      - docker-latest-logrotate
+      - docker-logrotate
+      - docker-engine
+    state: absent
+
+- name: Docker Engine - Add Docker Repository
+  shell: |
+    dnf install -y yum-utils
+    yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+- name: Docker Engine - Install the latest version of Docker Engine and containerd
+  dnf:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+  notify: Start and enable docker
+
+- name: Docker Engine - Add the current user to the docker group
+  user:
+    name: ${VPSK3S01_USER}
+    groups: docker
+    append: yes
+  environment:
+    VPSK3S01_USER: "{{ VPSK3S01_USER }}"
+
+- name: Docker Engine - Start and enable docker
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: K3s - Install K3s with custom parameters
+  shell: |
+    curl -sfL https://get.k3s.io | sh -s - server \
+      --datastore-endpoint=${K3S_DB_ENDPOINT} \
+      --tls-san=${K3S_FIXED_IP}
+  environment:
+    K3S_DB_ENDPOINT: "{{ K3S_DB_ENDPOINT }}"
+    K3S_FIXED_IP: "{{ K3S_FIXED_IP }}"
+  args:
+    creates: /usr/local/bin/k3s
+
+- name: K3s - Enable and start k3s service
+  systemd:
+    name: k3s
+    enabled: yes
+    state: started
+
+- name: K3s - Copy kubeconfig to current user
+  copy:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: /home/${VPSK3S01_USER}/.kube/config
+    remote_src: yes
+    owner: ${VPSK3S01_USER}
+    group: ${VPSK3S01_USER}
+    mode: '0600'
+  when: ansible_user == "${VPSK3S01_USER}"
+  environment:
+    VPSK3S01_USER: "{{ VPSK3S01_USER }}"
+
+- name: PostgreSQL 15 - Add Repository
+  shell: |
+    apt-get update -y
+    apt-get install -y wget ca-certificates
+    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+    sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+    apt-get update -y
+
+- name: PostgreSQL 15 - Install PostgreSQL 15
+  shell: |
+    apt-get install -y postgresql-15 postgresql-contrib
+
+- name: PostgreSQL 15 - Configure pg_hba.conf to enable MD5
+  copy:
+    src: "./postgresql/data/pg_hba.conf"
+    dest: "/var/lib/pgsql/15/data/pg_hba.conf"
+
+- name: PostgreSQL 15 - Configure postgresql.conf to enable listen_addresses
+  copy:
+    src: "./postgresql/data/postgresql.conf"
+    dest: "/var/lib/pgsql/15/data/postgresql.conf"
+
+- name: PostgreSQL 15 - Enable the PostgreSQL service
+  shell: |
+    systemctl enable postgresql-15
+
+- name: PostgreSQL 15 - Start the PostgreSQL service
+  shell: |
+    systemctl start postgresql-15
+
+- name: PostgreSQL 15 - Create DBA user
+  become: yes
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    user: ${SUPERMANAGER_DB_USER}
+    password: ${SUPERMANAGER_DB_PASSWORD}
+    db: postgres
+    login_host: 127.0.0.1
+    login_user: postgres
+    login_password: ${POSTGRES_ROOT_PASSWORD}
+  environment:
+    POSTGRES_PASSWORD: "{{ POSTGRES_ROOT_PASSWORD }}"
+
+- name: PostgreSQL 15 - Reload configuration
+  become: yes
+  become_user: postgres
+  shell: /usr/pgsql-15/bin/pg_ctl reload -D /var/lib/pgsql/15/data
+
+- name: Get the k3s cluster token value
+  shell: cat /var/lib/rancher/k3s/server/token
+  register: k3s_cluster_token
+
+- name: Show the k3s cluster token value
+  debug:
+    msg: "The k3s cluster token is: {{ k3s_cluster_token.stdout }}"

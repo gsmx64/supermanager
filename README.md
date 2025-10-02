@@ -1,5 +1,5 @@
 
-SuperManager - Frontend part (Under Development) - v1.0.0
+SuperManager - (Under Development) - v1.0.0
 
 ## Overview
 

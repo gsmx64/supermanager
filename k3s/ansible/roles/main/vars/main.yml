@@ -1,0 +1,5 @@
+---
+# vars file for main
+docker_packages:
+  - docker-ce
+  - iproute-tc 

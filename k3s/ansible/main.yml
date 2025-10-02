@@ -1,0 +1,6 @@
+- hosts: main 
+  name: Deploy main k3s VM
+  become: yes
+
+  roles:
+    - main

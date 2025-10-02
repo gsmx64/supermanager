@@ -1,0 +1,7 @@
+---
+# handlers file for main
+
+- name: Docker Engine - Start and enable docker
+  service:
+    name: docker
+    state: restarted
