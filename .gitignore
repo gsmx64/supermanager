@@ -1,7 +1,11 @@
 # Ignore backend directory
 # Repository here: https://github.com/gsmx64/supermanager-backend
-backend/
+supermanager-backend/
 
-# Ignore backend directory
+# Ignore frontend directory
 # Repository here: https://github.com/gsmx64/supermanager-frontend
-frontend/
+supermanager-frontend/
+
+# Ignore environment variable files
+k3s/ansible/.env.ansible
+.env.production
