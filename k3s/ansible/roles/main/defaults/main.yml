@@ -1,0 +1,4 @@
+---
+# defaults file for main
+main_test: This is a test message
+main_port: 8080
