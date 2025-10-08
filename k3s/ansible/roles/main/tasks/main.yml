@@ -144,6 +144,16 @@
     enabled: yes
     state: started
 
+- name: PostgreSQL 15 - Create Cluster DB
+  become: yes
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: "SUPERMANAGER_VPS_DB_NAME"
+    encoding: UTF8
+    lc_collate: en_US.UTF-8
+    lc_ctype: en_US.UTF-8
+    state: present
+
 - name: PostgreSQL 15 - Create Cluster DB user
   become: yes
   become_user: postgres
@@ -154,6 +164,16 @@
     login_host: 127.0.0.1
     login_user: "postgres"
     login_password: "POSTGRES_ROOT_PASSWORD"
+
+- name: PostgreSQL 15 - Create Cluster DB
+  become: yes
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: "SUPERMANAGER_DB_NAME"
+    encoding: UTF8
+    lc_collate: en_US.UTF-8
+    lc_ctype: en_US.UTF-8
+    state: present
 
 - name: PostgreSQL 15 - Create SuperManager DB user
   become: yes
