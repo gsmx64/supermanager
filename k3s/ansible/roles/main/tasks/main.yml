@@ -87,30 +87,6 @@
     state: started
     enabled: yes
 
-- name: K3s - Install K3s with custom parameters
-  shell: |
-    curl -sfL https://get.k3s.io | sh -s - server \
-      --datastore-endpoint=K3S_DB_ENDPOINT \
-      --tls-san=K3S_FIXED_IP 
-  args:
-    creates: /usr/local/bin/k3s
-
-- name: K3s - Enable and start k3s service
-  systemd:
-    name: k3s
-    enabled: yes
-    state: started
-
-- name: K3s - Copy kubeconfig to current user
-  copy:
-    src: /etc/rancher/k3s/k3s.yaml
-    dest: "/home/VPSK3S01_USER/.kube/config"
-    remote_src: yes
-    owner: "VPSK3S01_USER"
-    group: "VPSK3S01_USER"
-    mode: '0600'
-  when: ansible_user == "VPSK3S01_USER"
-
 - name: PostgreSQL 15 - Add Repository
   shell: |
     echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
@@ -142,26 +118,74 @@
     group: postgres
     mode: '0640'
 
+- name: PostgreSQL 15 - Set password for postgres user
+  become: yes
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: postgres
+    password: "POSTGRES_ROOT_PASSWORD"
+    db: postgres
+    login_host: 127.0.0.1
+    login_user: postgres
+    login_password: "POSTGRES_ROOT_PASSWORD"
+    role_attr_flags: "SUPERUSER"
+    state: present
+
 - name: PostgreSQL 15 - Enable and start the PostgreSQL service
   systemd:
     name: postgresql
     enabled: yes
     state: started
 
-- name: PostgreSQL 15 - Create DBA user
+- name: PostgreSQL 15 - Create Cluster DB user
+  become: yes
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: "SUPERMANAGER_VPS_USER"
+    password: "SUPERMANAGER_VPS_PASSWORD"
+    db: "SUPERMANAGER_VPS_DB_NAME"
+    login_host: 127.0.0.1
+    login_user: "postgres"
+    login_password: "POSTGRES_ROOT_PASSWORD"
+
+- name: PostgreSQL 15 - Create SuperManager DB user
   become: yes
   become_user: postgres
   community.postgresql.postgresql_user:
     name: "SUPERMANAGER_DB_USER"
     password: "SUPERMANAGER_DB_PASSWORD"
-    db: postgres
+    db: "SUPERMANAGER_DB_NAME"
     login_host: 127.0.0.1
-    login_user: postgres
+    login_user: "postgres"
     login_password: "POSTGRES_ROOT_PASSWORD"
 
 - name: PostgreSQL 15 - Reload configuration
   shell: |
     systemctl reload postgresql
+
+- name: K3s - Install K3s with custom parameters
+  shell: |
+    curl -sfL https://get.k3s.io | sh -s - server \
+      --datastore-endpoint="K3S_DB_ENDPOINT" \
+      --tls-san=K3S_FIXED_IP 
+  args:
+    creates: /usr/local/bin/k3s
+
+- name: K3s - Enable and start k3s service
+  systemd:
+    name: k3s
+    enabled: yes
+    state: started
+
+- name: K3s - Copy kubeconfig to current user
+  copy:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "/home/VPSK3S01_USER/.kube/config"
+    remote_src: yes
+    owner: "VPSK3S01_USER"
+    group: "VPSK3S01_USER"
+    mode: '0600'
+  when: ansible_user == "VPSK3S01_USER"
 
 - name: Helm - Get latest Helm version
   uri:
