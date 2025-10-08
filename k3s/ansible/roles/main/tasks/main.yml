@@ -1,5 +1,6 @@
 ---
 # tasks file for k8smaster
+
 - name: Update all installed packages using APT module
   apt:
     upgrade: dist
@@ -24,11 +25,14 @@
       - tar
       - jq
       - make
+      - gnupg
+      - lsb-release
+      - apt-transport-https
     state: latest
     update_cache: yes
 
 - name: Docker Engine - Uninstall old versions
-  dnf:
+  apt:
     name:
       - docker-client
       - docker-client-latest
@@ -38,30 +42,29 @@
       - docker-logrotate
       - docker-engine
     state: absent
+    purge: yes
 
 - name: Docker Engine - Add Docker Repository
   shell: |
-    apt-get update -y
-    apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
     curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
     apt-get update -y
 
 - name: Docker Engine - Install the latest version of Docker Engine and containerd
-  dnf:
+  apt:
     name:
       - docker-ce
       - docker-ce-cli
       - containerd.io
+    state: latest
+    update_cache: yes
   notify: Start and enable docker
 
 - name: Docker Engine - Add the current user to the docker group
   user:
-    name: ${VPSK3S01_USER}
+    name: "{{ VPSK3S01_USER }}"
     groups: docker
     append: yes
-  environment:
-    VPSK3S01_USER: "{{ VPSK3S01_USER }}"
 
 - name: Docker Engine - Start and enable docker
   systemd:
@@ -71,12 +74,7 @@
 
 - name: K3s - Install K3s with custom parameters
   shell: |
-    curl -sfL https://get.k3s.io | sh -s - server \
-      --datastore-endpoint=${K3S_DB_ENDPOINT} \
-      --tls-san=${K3S_FIXED_IP}
-  environment:
-    K3S_DB_ENDPOINT: "{{ K3S_DB_ENDPOINT }}"
-    K3S_FIXED_IP: "{{ K3S_FIXED_IP }}"
+    curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server --datastore-endpoint={{ K3S_DB_ENDPOINT }} --tls-san={{ K3S_FIXED_IP }}" sh -
   args:
     creates: /usr/local/bin/k3s
 
@@ -89,62 +87,64 @@
 - name: K3s - Copy kubeconfig to current user
   copy:
     src: /etc/rancher/k3s/k3s.yaml
-    dest: /home/${VPSK3S01_USER}/.kube/config
+    dest: "/home/{{ VPSK3S01_USER }}/.kube/config"
     remote_src: yes
-    owner: ${VPSK3S01_USER}
-    group: ${VPSK3S01_USER}
+    owner: "{{ VPSK3S01_USER }}"
+    group: "{{ VPSK3S01_USER }}"
     mode: '0600'
-  when: ansible_user == "${VPSK3S01_USER}"
-  environment:
-    VPSK3S01_USER: "{{ VPSK3S01_USER }}"
+  when: ansible_user == VPSK3S01_USER
 
 - name: PostgreSQL 15 - Add Repository
   shell: |
-    apt-get update -y
-    apt-get install -y wget ca-certificates
-    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
-    sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+    echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
     apt-get update -y
 
 - name: PostgreSQL 15 - Install PostgreSQL 15
-  shell: |
-    apt-get install -y postgresql-15 postgresql-contrib
+  apt:
+    name:
+      - postgresql-15
+      - postgresql-contrib
+    state: present
+    update_cache: yes
 
 - name: PostgreSQL 15 - Configure pg_hba.conf to enable MD5
   copy:
     src: "./postgresql/data/pg_hba.conf"
-    dest: "/var/lib/pgsql/15/data/pg_hba.conf"
+    dest: "/etc/postgresql/15/main/pg_hba.conf"
+    owner: postgres
+    group: postgres
+    mode: '0640'
 
 - name: PostgreSQL 15 - Configure postgresql.conf to enable listen_addresses
   copy:
     src: "./postgresql/data/postgresql.conf"
-    dest: "/var/lib/pgsql/15/data/postgresql.conf"
+    dest: "/etc/postgresql/15/main/postgresql.conf"
+    owner: postgres
+    group: postgres
+    mode: '0640'
 
-- name: PostgreSQL 15 - Enable the PostgreSQL service
-  shell: |
-    systemctl enable postgresql-15
-
-- name: PostgreSQL 15 - Start the PostgreSQL service
-  shell: |
-    systemctl start postgresql-15
+- name: PostgreSQL 15 - Enable and start the PostgreSQL service
+  systemd:
+    name: postgresql
+    enabled: yes
+    state: started
 
 - name: PostgreSQL 15 - Create DBA user
   become: yes
   become_user: postgres
   community.postgresql.postgresql_user:
-    user: ${SUPERMANAGER_DB_USER}
-    password: ${SUPERMANAGER_DB_PASSWORD}
+    name: "{{ SUPERMANAGER_DB_USER }}"
+    password: "{{ SUPERMANAGER_DB_PASSWORD }}"
     db: postgres
     login_host: 127.0.0.1
     login_user: postgres
-    login_password: ${POSTGRES_ROOT_PASSWORD}
-  environment:
-    POSTGRES_PASSWORD: "{{ POSTGRES_ROOT_PASSWORD }}"
+    login_password: "{{ POSTGRES_ROOT_PASSWORD }}"
 
 - name: PostgreSQL 15 - Reload configuration
-  become: yes
-  become_user: postgres
-  shell: /usr/pgsql-15/bin/pg_ctl reload -D /var/lib/pgsql/15/data
+  shell: |
+    systemctl reload postgresql
 
 - name: Helm - Get latest Helm version
   uri:
@@ -196,13 +196,13 @@
 - name: Monitoring - Add Prometheus Helm Repository
   shell: |
     helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-    kubectl create namespace monitoring
+    kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
     helm install prometheus prometheus-community/prometheus \
     --namespace monitoring \
     --set alertmanager.persistentVolume.storageClass="openebs-hostpath" \
     --set server.persistentVolume.storageClass="openebs-hostpath"
   notify:
-  - Restart kubelet
+    - Restart kubelet
 
 - name: Monitoring - Add Grafana Helm Repository
   shell: |
@@ -213,7 +213,7 @@
     --set persistence.enabled=true \
     --set adminPassword=grafana_this_password_will_change
   notify:
-  - Restart kubelet
+    - Restart kubelet
 
 - name: Get the k3s cluster token value
   shell: cat /var/lib/rancher/k3s/server/token
