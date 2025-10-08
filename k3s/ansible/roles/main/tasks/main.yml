@@ -7,26 +7,25 @@
   register: apt_update_status
 
 - name: Install required system packages
-  dnf:
+  apt:
     name:
       - ca-certificates
       - openssl
-      - openssl-devel
       - curl
       - wget
       - nano
       - unzip
       - git
       - gcc
-      - openssl-devel
-      - bzip2-devel
-      - libffi-devel
-      - zlib-devel
+      - libssl-dev
+      - libbz2-dev
+      - libffi-dev
+      - zlib1g-dev
       - tar
       - jq
       - make
     state: latest
-    update_cache: true
+    update_cache: yes
 
 - name: Docker Engine - Uninstall old versions
   dnf:
