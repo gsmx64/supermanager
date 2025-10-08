@@ -27,15 +27,92 @@ echo " "
 echo "---------------------------------------------------------------------"
 sleep 2
 
-if [ -n "$pgpass" ]; then
-    sudo sed -i "s/VPSK3S01_IP/$VPSK3S01_IP/g" $PWD/inventory
+check_root
+
+# Install Ansible if not present
+apt update && apt upgrade -y
+if ! command -v ansible &> /dev/null; then
+    echo "Ansible not found, installing..."
+    apt install ansible
+else
+    echo "Ansible is already installed."
+    ansible --version
+    sleep 2
 fi
-if [ -n "$pgpass" ]; then
-    sudo sed -i "s/VPSK3S01_USER/$VPSK3S01_USER/g" $PWD/inventory
+
+# Prepare environment file
+if [ -f $PWD/.env.ansible.sample ]; then
+    if [ -f $PWD/.env.ansible ]; then
+        echo " "
+        echo "---------------------------------------------------------------------"
+        echo ">>> .env.ansible file already exists. Using existing file."
+        echo "---------------------------------------------------------------------"
+        sleep 2
+    else
+        echo " "
+        echo "---------------------------------------------------------------------"
+        echo ">>> Creating .env.ansible file from .env.ansible.sample template."
+        echo "---------------------------------------------------------------------"
+        cp .env.ansible.sample .env.ansible
+        sleep 2
+    fi
+else
+    echo " "
+    echo "---------------------------------------------------------------------"
+    echo ">>> ERROR: .env.ansible.sample file not found! Exiting..."
+    echo "---------------------------------------------------------------------"
+    exit 1
+fi
+
+# Edit environment file
+if [ -f $PWD/.env.ansible ]; then
+    echo " "
+    echo "---------------------------------------------------------------------"
+    echo ">>> Edit .env.ansible file to set your environment variables as needed."
+    echo "---------------------------------------------------------------------"
+    sleep 2
+
+    # Check if nano or vi exists, install if missing
+    if ! command -v nano &> /dev/null; then
+        echo "nano not found, installing..."
+        apt update && apt install -y nano
+    fi
+    if ! command -v vi &> /dev/null; then
+        echo "vi not found, installing..."
+        apt update && apt install -y vim
+    fi
+
+    echo "Choose editor to open .env.ansible:"
+    select editor in "nano" "vi"; do
+        case $editor in
+            nano ) nano .env.ansible; break;;
+            vi ) vi .env.ansible; break;;
+            * ) echo "Invalid option. Please select 1 or 2.";;
+        esac
+    done
+    source $PWD/.env.ansible
+else
+    echo " "
+    echo "---------------------------------------------------------------------"
+    echo ">>> ERROR: .env.ansible file not found! Exiting..."
+    echo "---------------------------------------------------------------------"
+    exit 1
+fi
+
+# Prepare inventory file
+if [ -f $PWD/inventory ]; then
+    sed -i "s/VPSK3S01_IP/$VPSK3S01_IP/g" $PWD/inventory
+    sed -i "s/VPSK3S01_USER/$VPSK3S01_USER/g" $PWD/inventory
+else
+    echo " "
+    echo "---------------------------------------------------------------------"
+    echo ">>> ERROR: inventory file not found! Exiting..."
+    echo "---------------------------------------------------------------------"
+    exit 1
 fi
 
 # Run Ansible Playbook
-export ANSIBLE_HOST_KEY_CHECKING=False && export DEFAULT_KEEP_REMOTE_FILES=yes && sudo ansible-playbook --inventory-file ./inventory -vvv ./k3s.yml --private-key ../gsmcfdevops --key-file ../gsmcfdevops.pub --user gsmcfdevops
+export ANSIBLE_PERSISTENT_COMMAND_TIMEOUT=60 && export ANSIBLE_HOST_KEY_CHECKING=False && export DEFAULT_KEEP_REMOTE_FILES=yes && ansible-playbook -K --inventory-file ./inventory -vvv ./k3s.yml --private-key $VPSK3S01_SSH_KEY --key-file $VPSK3S01_SSH_KEY_PUB --user $VPSK3S01_USER --extra-vars "ansible_ssh_port=$VPSK3S01_SSH_PORT ansible_ssh_private_key_file=$VPSK3S01_SSH_KEY ansible_ssh_common_args='-o StrictHostKeyChecking=no'"
 
 echo " "
 echo "-------------------------------------------------"

@@ -1,12 +1,10 @@
 ---
 # tasks file for k8smaster
-- name: Update all installed packages using YUM module
-  yum:
-    name: '*'
-    state: latest
+- name: Update all installed packages using APT module
+  apt:
+    upgrade: dist
     update_cache: yes
-    update_only: yes
-  register: yum_update_status
+  register: apt_update_status
 
 - name: Install required system packages
   dnf:
@@ -44,8 +42,11 @@
 
 - name: Docker Engine - Add Docker Repository
   shell: |
-    dnf install -y yum-utils
-    yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+    apt-get update -y
+    apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+    curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+    apt-get update -y
 
 - name: Docker Engine - Install the latest version of Docker Engine and containerd
   dnf:
