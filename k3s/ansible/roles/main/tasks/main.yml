@@ -150,8 +150,8 @@
   community.postgresql.postgresql_db:
     name: "SUPERMANAGER_VPS_DB_NAME"
     encoding: UTF8
-    lc_collate: en_US.UTF-8
-    lc_ctype: en_US.UTF-8
+    lc_collate: C.UTF-8
+    lc_ctype: C.UTF-8
     state: present
 
 - name: PostgreSQL 15 - Create Cluster DB user
@@ -171,8 +171,8 @@
   community.postgresql.postgresql_db:
     name: "SUPERMANAGER_DB_NAME"
     encoding: UTF8
-    lc_collate: en_US.UTF-8
-    lc_ctype: en_US.UTF-8
+    lc_collate: C.UTF-8
+    lc_ctype: C.UTF-8
     state: present
 
 - name: PostgreSQL 15 - Create SuperManager DB user
