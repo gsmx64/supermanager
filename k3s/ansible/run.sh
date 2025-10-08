@@ -100,9 +100,26 @@ else
 fi
 
 # Prepare inventory file
+if [ -z "$VPSK3S01_IP" ]; then
+    echo " "
+    echo "---------------------------------------------------------------------"
+    echo ">>> ERROR: Variables not haset values! Exiting..."
+    echo "---------------------------------------------------------------------"
+    exit 1
+fi
+
+# Prepare inventory file
 if [ -f $PWD/inventory ]; then
     sed -i "s/VPSK3S01_IP/$VPSK3S01_IP/g" $PWD/inventory
     sed -i "s/VPSK3S01_USER/$VPSK3S01_USER/g" $PWD/inventory
+    sed -i "s/VPSK3S01_IP/$VPSK3S01_IP/g" $PWD/roles/main/tasks/main.yml
+    sed -i "s/VPSK3S01_USER/$VPSK3S01_USER/g" $PWD/roles/main/tasks/main.yml
+    sed -i "s/K3S_DB_ENDPOINT/$K3S_DB_ENDPOINT/g" $PWD/roles/main/tasks/main.yml
+    sed -i "s/K3S_FIXED_IP/$K3S_FIXED_IP/g" $PWD/roles/main/tasks/main.yml
+    sed -i "s/SUPERMANAGER_DB_USER/$SUPERMANAGER_DB_USER/g" $PWD/roles/main/tasks/main.yml
+    sed -i "s/SUPERMANAGER_DB_PASSWORD/$SUPERMANAGER_DB_PASSWORD/g" $PWD/roles/main/tasks/main.yml
+    sed -i "s/POSTGRES_ROOT_PASSWORD/$POSTGRES_ROOT_PASSWORD/g" $PWD/roles/main/tasks/main.yml
+    sed -i "s/GRAFANA_ADMIN_PASSWORD/$GRAFANA_ADMIN_PASSWORD/g" $PWD/roles/main/tasks/main.yml
 else
     echo " "
     echo "---------------------------------------------------------------------"

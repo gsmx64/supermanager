@@ -77,11 +77,9 @@
 
 - name: Docker Engine - Add the current user to the docker group
   user:
-    name: ${VPSK3S01_USER}
+    name: "VPSK3S01_USER"
     groups: docker
     append: yes
-  environment:
-    VPSK3S01_USER: "{{ VPSK3S01_USER }}"
 
 - name: Docker Engine - Start and enable docker
   systemd:
@@ -92,11 +90,8 @@
 - name: K3s - Install K3s with custom parameters
   shell: |
     curl -sfL https://get.k3s.io | sh -s - server \
-      --datastore-endpoint=${K3S_DB_ENDPOINT} \
-      --tls-san=${K3S_FIXED_IP}
-  environment:
-    K3S_DB_ENDPOINT: "{{ K3S_DB_ENDPOINT }}"
-    K3S_FIXED_IP: "{{ K3S_FIXED_IP }}"  
+      --datastore-endpoint=K3S_DB_ENDPOINT \
+      --tls-san=K3S_FIXED_IP 
   args:
     creates: /usr/local/bin/k3s
 
@@ -109,14 +104,12 @@
 - name: K3s - Copy kubeconfig to current user
   copy:
     src: /etc/rancher/k3s/k3s.yaml
-    dest: "/home/${VPSK3S01_USER}/.kube/config"
+    dest: "/home/VPSK3S01_USER/.kube/config"
     remote_src: yes
-    owner: ${VPSK3S01_USER}
-    group: ${VPSK3S01_USER}
+    owner: "VPSK3S01_USER"
+    group: "VPSK3S01_USER"
     mode: '0600'
-  when: ansible_user == ${VPSK3S01_USER}
-  environment:
-    VPSK3S01_USER: "{{ VPSK3S01_USER }}"
+  when: ansible_user == "VPSK3S01_USER"
 
 - name: PostgreSQL 15 - Add Repository
   shell: |
@@ -159,16 +152,12 @@
   become: yes
   become_user: postgres
   community.postgresql.postgresql_user:
-    name: ${SUPERMANAGER_DB_USER}
-    password: ${SUPERMANAGER_DB_PASSWORD}
+    name: "SUPERMANAGER_DB_USER"
+    password: "SUPERMANAGER_DB_PASSWORD"
     db: postgres
     login_host: 127.0.0.1
     login_user: postgres
-    login_password: ${POSTGRES_ROOT_PASSWORD}
-  environment:
-    SUPERMANAGER_DB_USER: "{{ SUPERMANAGER_DB_USER }}"
-    SUPERMANAGER_DB_PASSWORD: "{{ SUPERMANAGER_DB_PASSWORD }}"
-    POSTGRES_ROOT_PASSWORD: "{{ POSTGRES_ROOT_PASSWORD }}"
+    login_password: "POSTGRES_ROOT_PASSWORD"
 
 - name: PostgreSQL 15 - Reload configuration
   shell: |
@@ -243,9 +232,7 @@
     --namespace monitoring \
     --set persistence.storageClassName="openebs-hostpath" \
     --set persistence.enabled=true \
-    --set adminPassword=${GRAFANA_ADMIN_PASSWORD}
-  environment:
-    GRAFANA_ADMIN_PASSWORD: "{{ GRAFANA_ADMIN_PASSWORD }}"
+    --set adminPassword=GRAFANA_ADMIN_PASSWORD
   notify:
     - Restart kubelet
 
